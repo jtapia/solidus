@@ -43,4 +43,18 @@ class Spree::Base < ActiveRecord::Base
   def self.display_includes
     where(nil)
   end
+
+  def self.import(columns = [], values = {})
+    model_columns = (columns || self.column_names - %w(id)).map(&:to_s).join(', ')
+    values = values.map do |row|
+      row_values = row.attributes.with_indifferent_access.slice(*columns).values.map do |value|
+        ActiveRecord::Base.connection.send(:_quote, value)
+      end
+
+      "(#{row_values})"
+    end.join(', ')
+
+    sql = "INSERT INTO #{self.table_name} (#{model_columns}) VALUES #{values}"
+    ActiveRecord::Base.connection.execute(sql)
+  end
 end

@@ -60,13 +60,29 @@ module Spree
     end
 
     def add_to_shipment(shipment, quantity)
+      inventory_units = []
+
       if variant.should_track_inventory?
         on_hand, back_order = shipment.stock_location.fill_status(variant, quantity)
 
-        on_hand.times { shipment.set_up_inventory('on_hand', variant, order, line_item) }
-        back_order.times { shipment.set_up_inventory('backordered', variant, order, line_item) }
+        on_hand.times do
+          inventory_units << shipment.set_up_inventory('on_hand', variant,
+            order, line_item)
+        end
+        back_order.times do
+          inventory_units << shipment.set_up_inventory('backordered', variant,
+            order, line_item)
+        end
       else
-        quantity.times { shipment.set_up_inventory('on_hand', variant, order, line_item) }
+        quantity.times do
+          inventory_units << shipment.set_up_inventory('on_hand',
+            variant, order, line_item)
+        end
+      end
+
+      ActiveRecord::Base.transaction do
+        Spree::InventoryUnit.import([:state, :variant_id, :line_item_id,
+          :shipment_id], inventory_units)
       end
 
       # adding to this shipment, and removing from stock_location
